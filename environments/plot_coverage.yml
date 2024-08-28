@@ -1,0 +1,9 @@
+name: amplicon-consensus-plot-coverage
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3
+  - seaborn=0.13.2
+  - samtools=1.20

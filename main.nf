@@ -10,8 +10,10 @@ include { bwa_mem }                        from './modules/amplicon_consensus.nf
 include { trim_primer_sequences }          from './modules/amplicon_consensus.nf'
 include { qualimap_bamqc }                 from './modules/amplicon_consensus.nf'
 include { samtools_stats }                 from './modules/amplicon_consensus.nf'
+include { samtools_mpileup }               from './modules/amplicon_consensus.nf'
 include { make_consensus }                 from './modules/amplicon_consensus.nf'
 include { align_consensus_to_ref }         from './modules/amplicon_consensus.nf'
+include { plot_coverage }                  from './modules/amplicon_consensus.nf'
 include { pipeline_provenance }            from './modules/provenance.nf'
 include { collect_provenance }             from './modules/provenance.nf'
 
@@ -66,6 +68,12 @@ workflow {
     trim_primer_sequences(ch_alignment.combine(ch_bed))
 
     qualimap_bamqc(trim_primer_sequences.out.primer_trimmed_alignment)
+
+    samtools_mpileup(trim_primer_sequences.out.primer_trimmed_alignment.join(ch_ref))
+
+    ch_depths = samtools_mpileup.out.depths
+
+    plot_coverage(ch_depths.join(ch_ref))
 
     samtools_stats(trim_primer_sequences.out.primer_trimmed_alignment)
 

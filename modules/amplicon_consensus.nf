@@ -229,6 +229,47 @@ process samtools_stats {
 }
 
 
+process samtools_mpileup {
+
+    tag { sample_id }
+
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_depths.tsv"
+
+    input:
+    tuple val(sample_id), path(alignment), path(ref)
+
+    output:
+    tuple val(sample_id), path("${sample_id}_depths.tsv"), emit: depths
+    tuple val(sample_id), path("${sample_id}_samtools_mpileup_provenance.yml"), emit: provenance
+
+    script:
+    """
+    printf -- "- process_name: samtools_mpileup\\n" >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "  tools:\\n"                         >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "    - tool_name: samtools\\n"        >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "      tool_version: \$(samtools --version | head -n 1 | cut -d ' ' -f 2)\\n" >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "      subcommand: mpileup\\n"        >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "      parameters:\\n"                >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "        - parameter: -a\\n"          >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "          value: null\\n"            >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "        - parameter: --min-BQ\\n"    >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "          value: 0\\n"               >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "        - parameter: --count-orphans\\n" >> ${sample_id}_samtools_mpileup_provenance.yml
+    printf -- "          value: null\\n"                >> ${sample_id}_samtools_mpileup_provenance.yml
+
+    samtools faidx ${ref}
+
+    printf "chrom\tpos\tref\tdepth\n" > ${sample_id}_depths.tsv
+
+    samtools mpileup -a \
+	--fasta-ref ${ref} \
+	--min-BQ 0 \
+	--count-orphans \
+	${alignment[0]} | cut -f 1-4 >> ${sample_id}_depths.tsv
+    """
+}
+
+
 process make_consensus {
 
     tag { sample_id }
@@ -347,5 +388,31 @@ process minimap2 {
     """
 }
 
+process plot_coverage {
 
+    tag { sample_id }
 
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_coverage.png"
+
+    input:
+    tuple val(sample_id), path(depths), path(ref)
+
+    output:
+    tuple val(sample_id), path("${sample_id}_coverage.png"), optional: true
+
+    script:
+    log_scale = params.coverage_plot_log_scale ? "--log-scale" : ""
+    """
+    plot-coverage.py \
+	--sample-id ${sample_id} \
+	--ref ${ref} \
+	--depths ${depths} \
+	--threshold ${params.min_depth} \
+	--y-limit ${params.coverage_plot_y_limit} \
+	--width-inches-per-mb ${params.coverage_plot_width_inches_per_mb} \
+	--height-inches-per-chrom ${params.coverage_plot_height_inches_per_chrom} \
+	--window ${params.coverage_plot_window_size} \
+	${log_scale} \
+	--output ${sample_id}_coverage.png
+    """
+}
