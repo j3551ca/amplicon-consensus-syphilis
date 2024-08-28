@@ -8,6 +8,8 @@ include { fastp }                          from './modules/short_read_qc.nf'
 include { index_ref }                      from './modules/amplicon_consensus.nf'
 include { bwa_mem }                        from './modules/amplicon_consensus.nf'
 include { trim_primer_sequences }          from './modules/amplicon_consensus.nf'
+include { qualimap_bamqc }                 from './modules/amplicon_consensus.nf'
+include { samtools_stats }                 from './modules/amplicon_consensus.nf'
 include { make_consensus }                 from './modules/amplicon_consensus.nf'
 include { align_consensus_to_ref }         from './modules/amplicon_consensus.nf'
 include { pipeline_provenance }            from './modules/provenance.nf'
@@ -63,6 +65,10 @@ workflow {
 
     trim_primer_sequences(ch_alignment.combine(ch_bed))
 
+    qualimap_bamqc(trim_primer_sequences.out.primer_trimmed_alignment)
+
+    samtools_stats(trim_primer_sequences.out.primer_trimmed_alignment)
+
     make_consensus(trim_primer_sequences.out.primer_trimmed_alignment)
 
     align_consensus_to_ref(make_consensus.out.consensus.join(ch_indexed_ref))
@@ -75,6 +81,20 @@ workflow {
 	    name: "${params.collected_outputs_prefix}_fastp.csv",
 	    storeDir: "${params.outdir}"
 	)
+
+	qualimap_bamqc.out.alignment_qc.map{ it -> it[1] }.collectFile(
+	    keepHeader: true,
+	    sort: { it.text },
+	    name: "${params.collected_outputs_prefix}_qualimap_alignment_qc.csv",
+	    storeDir: "${params.outdir}"
+	)
+
+	samtools_stats.out.stats_summary_csv.map{ it -> it[1] }.collectFile(
+	    keepHeader: true,
+	    sort: { it.text },
+	    name: "${params.collected_outputs_prefix}_samtools_stats_summary.csv",
+	    storeDir: "${params.outdir}"
+	)
     }
 
     // Collect Provenance
@@ -84,7 +104,7 @@ workflow {
     // ...and then concatenate them all together in the 'collect_provenance' process.
     ch_provenance = ch_provenance.combine(ch_pipeline_provenance).map{ it ->             [it[0], [it[1]]] }
     ch_provenance = ch_provenance.join(hash_ref.out.provenance).map{ it ->               [it[0], it[1] << it[2]] }
-    ch_provenance = ch_provenance.join(hash_fastq.out.provenance).map{ it ->       [it[0], it[1] << it[2]] }
+    ch_provenance = ch_provenance.join(hash_fastq.out.provenance).map{ it ->             [it[0], it[1] << it[2]] }
     ch_provenance = ch_provenance.join(fastp.out.provenance).map{ it ->                  [it[0], it[1] << it[2]] }
     ch_provenance = ch_provenance.join(bwa_mem.out.provenance).map{ it ->                [it[0], it[1] << it[2]] }
     ch_provenance = ch_provenance.join(trim_primer_sequences.out.provenance).map{ it ->  [it[0], it[1] << it[2]] }

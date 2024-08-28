@@ -50,7 +50,7 @@ process bwa_mem {
     tuple val(sample_id), path("${sample_id}_bwa_mem_provenance.yml"), emit: provenance
     
     script:
-    bwa_threads = task.cpus - 8
+    bwa_threads = task.cpus - 4
     short_long = "short"
     samtools_view_filter_flags = params.skip_alignment_cleaning ? "0" : "1548"
     samtools_fixmate_remove_secondary_and_unmapped = params.skip_alignment_cleaning ? "" : "-r"
@@ -100,10 +100,10 @@ process trim_primer_sequences {
     script:
     """
     printf -- "- process_name: trim_primer_sequences\\n"     >> ${sample_id}_trim_primer_sequences_provenance.yml
-    printf -- "  tools:\\n"                    >> ${sample_id}_trim_primer_sequences_provenance.yml
-    printf -- "    - tool_name: ivar\\n"        >> ${sample_id}_trim_primer_sequences_provenance.yml
-    printf -- "      tool_version: \$(ivar version 2>&1 | head -n 1 | cut -d ' ' -f 3)\\n"      >> ${sample_id}_trim_primer_sequences_provenance.yml
-    printf -- "      subcommand: trim\\n"      >> ${sample_id}_trim_primer_sequences_provenance.yml
+    printf -- "  tools:\\n"                                  >> ${sample_id}_trim_primer_sequences_provenance.yml
+    printf -- "    - tool_name: ivar\\n"                     >> ${sample_id}_trim_primer_sequences_provenance.yml
+    printf -- "      tool_version: \$(ivar version 2>&1 | head -n 1 | cut -d ' ' -f 3)\\n"  >> ${sample_id}_trim_primer_sequences_provenance.yml
+    printf -- "      subcommand: trim\\n"                    >> ${sample_id}_trim_primer_sequences_provenance.yml
 
     # Filter out unmapped reads
     samtools view -F4 -o ${sample_id}.mapped.bam ${alignment[0]}
@@ -117,6 +117,114 @@ process trim_primer_sequences {
     
     samtools sort -o ${sample_id}.mapped.primertrimmed.sorted.bam ivar.out.bam
     samtools index ${sample_id}.mapped.primertrimmed.sorted.bam
+    """
+}
+
+
+process qualimap_bamqc {
+
+    tag { sample_id }
+
+    publishDir  "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_qualimap_alignment_qc.csv"
+    publishDir  "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_qualimap_genome_results.txt"
+    publishDir  "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_qualimap_report.pdf"
+
+    input:
+    tuple val(sample_id), file(alignment)
+
+    output:
+    tuple val(sample_id), path("${sample_id}_qualimap_alignment_qc.csv"), emit: alignment_qc
+    tuple val(sample_id), path("${sample_id}_qualimap_report.pdf"), emit: report, optional: true
+    tuple val(sample_id), path("${sample_id}_qualimap_genome_results.txt"), emit: genome_results, optional: true
+    tuple val(sample_id), path("${sample_id}_qualimap_bamqc_provenance.yml"), emit: provenance
+    
+    script:
+    """
+    printf -- "- process_name: \"qualimap_bamqc\"\\n"  >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "  tools:\\n"                            >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "    - tool_name: qualimap\\n"           >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "      tool_version: \$(qualimap bamqc | head | grep QualiMap | cut -d ' ' -f 2)\\n" >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "      parameters:\\n"                   >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "        - parameter: --collect-overlap-pairs\\n" >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "          value: null\\n"               >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "        - parameter: --cov-hist-lim\\n" >> ${sample_id}_qualimap_bamqc_provenance.yml
+    printf -- "          value: ${params.qualimap_coverage_histogram_limit}\\n" >> ${sample_id}_qualimap_bamqc_provenance.yml
+
+    # Assume qualimap exits successfully
+    # If it fails we will re-assign the exit code
+    # and generate an empty qualimap alignment qc
+    qualimap_exit_code=0
+
+    qualimap \
+	--java-mem-size=${params.qualimap_memory} \
+	bamqc \
+	--paint-chromosome-limits \
+	--collect-overlap-pairs \
+	--cov-hist-lim ${params.qualimap_coverage_histogram_limit} \
+	--output-genome-coverage ${sample_id}_genome_coverage.txt \
+	-nt ${task.cpus} \
+	-bam ${alignment[0]} \
+	-outformat PDF \
+	--outdir ${sample_id}_bamqc \
+	|| qualimap_exit_code=\$?
+
+    if [ \${qualimap_exit_code} -ne 0 ]; then
+    echo "Qualimap failed with exit code \${qualimap_exit_code}"
+        echo "Generating empty qualimap alignment qc"
+        qualimap_bamqc_genome_results_to_csv.py \
+	-s ${sample_id} \
+	--failed \
+	> ${sample_id}_qualimap_alignment_qc.csv
+    else
+	qualimap_bamqc_genome_results_to_csv.py \
+	-s ${sample_id} \
+	--qualimap-bamqc-genome-results ${sample_id}_bamqc/genome_results.txt \
+	> ${sample_id}_qualimap_alignment_qc.csv
+        cp ${sample_id}_bamqc/report.pdf ${sample_id}_qualimap_report.pdf
+        cp ${sample_id}_bamqc/genome_results.txt ${sample_id}_qualimap_genome_results.txt
+    fi
+    """
+}
+
+
+process samtools_stats {
+
+    tag { sample_id }
+
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_samtools_stats*.{txt,tsv,csv}"
+
+    input:
+    tuple val(sample_id), path(alignment)
+
+    output:
+    tuple val(sample_id), path("${sample_id}_samtools_stats.txt"), emit: stats
+    tuple val(sample_id), path("${sample_id}_samtools_stats_summary.txt"), emit: stats_summary
+    tuple val(sample_id), path("${sample_id}_samtools_stats_summary.csv"), emit: stats_summary_csv
+    tuple val(sample_id), path("${sample_id}_samtools_stats_insert_sizes.tsv"), emit: insert_sizes
+    tuple val(sample_id), path("${sample_id}_samtools_stats_coverage_distribution.tsv"), emit: coverage_distribution
+    tuple val(sample_id), path("${sample_id}_samtools_stats_provenance.yml"), emit: provenance
+
+    script:
+    """
+    printf -- "- process_name: samtools_stats\\n" >> ${sample_id}_samtools_stats_provenance.yml
+    printf -- "  tools:\\n"                       >> ${sample_id}_samtools_stats_provenance.yml
+    printf -- "    - tool_name: samtools\\n"      >> ${sample_id}_samtools_stats_provenance.yml
+    printf -- "      tool_version: \$(samtools --version | head -n 1 | cut -d ' ' -f 2)\\n" >> ${sample_id}_samtools_stats_provenance.yml
+    printf -- "      subcommand: stats\\n"        >> ${sample_id}_samtools_stats_provenance.yml
+
+    samtools stats \
+	--threads ${task.cpus} \
+	${alignment[0]} > ${sample_id}_samtools_stats.txt
+
+    grep '^SN' ${sample_id}_samtools_stats.txt | cut -f 2-  > ${sample_id}_samtools_stats_summary.txt
+
+    parse_samtools_stats_summary.py -i ${sample_id}_samtools_stats_summary.txt -s ${sample_id} > ${sample_id}_samtools_stats_summary.csv
+
+    echo "insert_size,pairs_total,inward_oriented_pairs,outward_oriented_pairs,other_pairs" | tr ',' '\t' > ${sample_id}_samtools_stats_insert_sizes.tsv
+    grep '^IS' ${sample_id}_samtools_stats.txt | cut -f 2-  >> ${sample_id}_samtools_stats_insert_sizes.tsv
+
+    echo "coverage,depth" | tr ',' '\t' > ${sample_id}_samtools_stats_coverage_distribution.tsv
+    grep '^COV' ${sample_id}_samtools_stats.txt | cut -f 2- >> ${sample_id}_samtools_stats_coverage_distribution.tsv	
     """
 }
 
