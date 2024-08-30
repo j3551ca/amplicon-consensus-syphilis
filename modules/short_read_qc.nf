@@ -10,7 +10,7 @@ process fastp {
     output:
     tuple val(sample_id), path("${sample_id}_fastp.json"), emit: fastp_json
     tuple val(sample_id), path("${sample_id}_fastp.csv"), emit: fastp_csv
-    tuple val(sample_id), path("${sample_id}_trimmed_R1.fastq.gz"), path("${sample_id}_trimmed_R2.fastq.gz"), emit: reads
+    tuple val(sample_id), path("${sample_id}_trimmed_R1.fastq.gz"), path("${sample_id}_trimmed_R2.fastq.gz"), emit: trimmed_reads
     tuple val(sample_id), path("${sample_id}_fastp_provenance.yml"), emit: provenance
 
     script:

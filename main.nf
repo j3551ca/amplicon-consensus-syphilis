@@ -11,6 +11,7 @@ include { trim_primer_sequences }          from './modules/amplicon_consensus.nf
 include { qualimap_bamqc }                 from './modules/amplicon_consensus.nf'
 include { samtools_stats }                 from './modules/amplicon_consensus.nf'
 include { samtools_mpileup }               from './modules/amplicon_consensus.nf'
+include { call_variants }                  from './modules/amplicon_consensus.nf'
 include { make_consensus }                 from './modules/amplicon_consensus.nf'
 include { align_consensus_to_ref }         from './modules/amplicon_consensus.nf'
 include { plot_coverage }                  from './modules/amplicon_consensus.nf'
@@ -61,7 +62,13 @@ workflow {
 
     fastp(ch_fastq)
 
-    bwa_mem(fastp.out.reads.join(ch_indexed_ref))
+    if (! params.align_untrimmed_reads) {	
+	ch_reads_to_align = fastp.out.trimmed_reads
+    } else {
+	ch_reads_to_align = ch_fastq
+    }
+
+    bwa_mem(ch_reads_to_align.join(ch_indexed_ref))
 
     ch_alignment = bwa_mem.out.alignment
 
@@ -76,6 +83,8 @@ workflow {
     plot_coverage(ch_depths.join(ch_ref))
 
     samtools_stats(trim_primer_sequences.out.primer_trimmed_alignment)
+
+    call_variants(trim_primer_sequences.out.primer_trimmed_alignment.join(ch_ref))
 
     make_consensus(trim_primer_sequences.out.primer_trimmed_alignment)
 

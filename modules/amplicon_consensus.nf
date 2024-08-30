@@ -270,6 +270,33 @@ process samtools_mpileup {
 }
 
 
+process call_variants {
+
+    tag { sample_id }
+
+    publishDir "${params.outdir}/${sample_id}", pattern: "${sample_id}.variants.tsv", mode: 'copy'
+
+    input:
+    tuple val(sample_id), path(alignment), path(ref)
+
+    output:
+    tuple val(sample_id), path("${sample_id}.variants.tsv")
+
+    script:
+    """
+    samtools faidx ${ref}
+
+    samtools mpileup -aa -A -d ${params.max_depth} -B -Q 0 --reference ${ref} ${alignment[0]} \
+	| ivar variants \
+	-r ${ref} \
+	-m ${params.min_depth}  \
+	-q ${params.min_qual_for_variant_calling} \
+	-t ${params.ambiguous_allele_freq_threshold} \
+	-p ${sample_id}.variants
+    """
+}
+
+
 process make_consensus {
 
     tag { sample_id }
@@ -291,9 +318,12 @@ process make_consensus {
     printf -- "      tool_version: \$(ivar version 2>&1 | head -n 1 | cut -d ' ' -f 3)\\n" >> ${sample_id}_make_consensus_provenance.yml
     printf -- "      subcommand: consensus\\n"        >> ${sample_id}_make_consensus_provenance.yml
 
-    samtools mpileup -aa -A -B -d ${params.max_depth} -Q0 ${alignment[0]} \
-	| ivar consensus -t ${params.unambiguous_allele_freq_threshold} -m ${params.min_depth} \
-        -n N -p ${sample_id}.primertrimmed.consensus
+    samtools mpileup -aa -A -B -d ${params.max_depth} -Q 0 ${alignment[0]} \
+	| ivar consensus \
+	-t ${params.unambiguous_allele_freq_threshold} \
+	-m ${params.min_depth} \
+        -n N \
+	-p ${sample_id}.primertrimmed.consensus
     """
 }
 
