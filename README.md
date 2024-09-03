@@ -13,13 +13,16 @@ This pipeline allows users to quickly and simply assess:
 ```mermaid
 flowchart TD
   ref[ref.fa]
+  bed[scheme.bed]
   fastq[fastq]
   fastq --> fastp(fastp)
   ref --> bwa(bwa_mem)
   fastp -- trimmed_reads --> bwa
   bwa -- alignment --> trim_primer_seqs(trim_primer_sequences)
+  bed --> trim_primer_seqs
   trim_primer_seqs -- primertrimmed_alignment --> make_consensus(make_consensus)
   make_consensus -- consensus --> align_consensus_to_ref(align_consensus_to_ref)
+  ref --> align_consensus_to_ref
 ```
 
 ## Usage
@@ -48,6 +51,24 @@ nextflow run BCCDC-PHL/amplicon-consensus \
   --align_untrimmed_reads \
   --outdir /path/to/output_dir
 ```
+
+If this option is used, the pipeline will proceed as follows, using the original untrimmed reads as input for the bwa alignment process:
+
+```mermaid
+flowchart TD
+  ref[ref.fa]
+  bed[scheme.bed]
+  fastq[fastq]
+  fastq --> fastp(fastp)
+  ref --> bwa(bwa_mem)
+  fastq -- untrimmed_reads --> bwa
+  bwa -- alignment --> trim_primer_seqs(trim_primer_sequences)
+  bed --> trim_primer_seqs
+  trim_primer_seqs -- primertrimmed_alignment --> make_consensus(make_consensus)
+  make_consensus -- consensus --> align_consensus_to_ref(align_consensus_to_ref)
+  ref --> align_consensus_to_ref
+```
+
 
 
 ## Inputs
