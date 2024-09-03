@@ -11,6 +11,7 @@ include { trim_primer_sequences }          from './modules/amplicon_consensus.nf
 include { qualimap_bamqc }                 from './modules/amplicon_consensus.nf'
 include { samtools_stats }                 from './modules/amplicon_consensus.nf'
 include { samtools_mpileup }               from './modules/amplicon_consensus.nf'
+include { amplicon_coverage }              from './modules/amplicon_consensus.nf'
 include { call_variants }                  from './modules/amplicon_consensus.nf'
 include { make_consensus }                 from './modules/amplicon_consensus.nf'
 include { align_consensus_to_ref }         from './modules/amplicon_consensus.nf'
@@ -74,19 +75,23 @@ workflow {
 
     trim_primer_sequences(ch_alignment.combine(ch_bed))
 
-    qualimap_bamqc(trim_primer_sequences.out.primer_trimmed_alignment)
+    ch_primer_trimmed_alignment = trim_primer_sequences.out.primer_trimmed_alignment
 
-    samtools_mpileup(trim_primer_sequences.out.primer_trimmed_alignment.join(ch_ref))
+    qualimap_bamqc(ch_primer_trimmed_alignment)
 
-    ch_depths = samtools_mpileup.out.depths
+    amplicon_coverage(ch_primer_trimmed_alignment.combine(ch_bed))
 
-    plot_coverage(ch_depths.join(ch_ref))
+    samtools_mpileup(ch_primer_trimmed_alignment.join(ch_ref))
 
-    samtools_stats(trim_primer_sequences.out.primer_trimmed_alignment)
+    ch_per_base_depths = samtools_mpileup.out.depths
 
-    call_variants(trim_primer_sequences.out.primer_trimmed_alignment.join(ch_ref))
+    plot_coverage(ch_per_base_depths.join(ch_ref))
 
-    make_consensus(trim_primer_sequences.out.primer_trimmed_alignment)
+    samtools_stats(ch_primer_trimmed_alignment)
+
+    call_variants(ch_primer_trimmed_alignment.join(ch_ref))
+
+    make_consensus(ch_primer_trimmed_alignment)
 
     align_consensus_to_ref(make_consensus.out.consensus.join(ch_indexed_ref))
 

@@ -270,6 +270,33 @@ process samtools_mpileup {
 }
 
 
+process amplicon_coverage {
+
+    tag { sample_id }
+
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_amplicon_coverage.tsv"
+
+    input:
+    tuple val(sample_id), path(alignment), path(bedfile)
+
+    output:
+    tuple val(sample_id), path("${sample_id}_amplicon_coverage.tsv"), emit: amplicon_coverage
+
+    script:
+    """
+    make_amplicon_bed.py --primer-bed ${bedfile} > amplicons.bed
+
+    echo -e "reference_name\tstart\tend\tamplicon_id\tmean_depth" > ${sample_id}_amplicon_coverage.tsv
+    
+    bedtools coverage \
+	-mean \
+	-a amplicons.bed \
+	-b ${alignment[0]} \
+	>> ${sample_id}_amplicon_coverage.tsv
+    """
+}
+
+
 process call_variants {
 
     tag { sample_id }
