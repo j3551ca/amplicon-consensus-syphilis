@@ -280,7 +280,7 @@ process amplicon_coverage {
     tuple val(sample_id), path(alignment), path(bedfile)
 
     output:
-    tuple val(sample_id), path("${sample_id}_amplicon_coverage.tsv"), emit: amplicon_coverage
+    tuple val(sample_id), path("${sample_id}_amplicon_coverage.tsv"), emit: depths
 
     script:
     """
@@ -471,5 +471,31 @@ process plot_coverage {
 	--window ${params.coverage_plot_window_size} \
 	${log_scale} \
 	--output ${sample_id}_coverage.png
+    """
+}
+
+
+process plot_amplicon_coverage {
+
+    tag { sample_id }
+
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy', pattern: "${sample_id}_amplicon_coverage.png"
+
+    input:
+    tuple val(sample_id), path(depths)
+
+    output:
+    tuple val(sample_id), path("${sample_id}_amplicon_coverage.png"), optional: true
+
+    script:
+    log_scale = params.coverage_plot_log_scale ? "--log-scale" : ""
+    """
+    plot-amplicon-coverage.py \
+	--sample-id ${sample_id} \
+	--depths ${depths} \
+	--threshold ${params.min_depth} \
+	--y-limit ${params.coverage_plot_y_limit} \
+	${log_scale} \
+	--output ${sample_id}_amplicon_coverage.png
     """
 }

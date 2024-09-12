@@ -16,6 +16,7 @@ include { call_variants }                  from './modules/amplicon_consensus.nf
 include { make_consensus }                 from './modules/amplicon_consensus.nf'
 include { align_consensus_to_ref }         from './modules/amplicon_consensus.nf'
 include { plot_coverage }                  from './modules/amplicon_consensus.nf'
+include { plot_amplicon_coverage }         from './modules/amplicon_consensus.nf'
 include { pipeline_provenance }            from './modules/provenance.nf'
 include { collect_provenance }             from './modules/provenance.nf'
 
@@ -80,6 +81,10 @@ workflow {
     qualimap_bamqc(ch_primer_trimmed_alignment)
 
     amplicon_coverage(ch_primer_trimmed_alignment.combine(ch_bed))
+
+    ch_amplicon_depths = amplicon_coverage.out.depths
+
+    plot_amplicon_coverage(ch_amplicon_depths)
 
     samtools_mpileup(ch_primer_trimmed_alignment.join(ch_ref))
 

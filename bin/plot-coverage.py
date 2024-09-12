@@ -206,7 +206,7 @@ def main(args):
 
     coverage_plot = plot_coverage(tumbling_window_depths, bed, args.sample_id, args.threshold, args.y_limit, args.log_scale, args.width_inches_per_mb, args.height_inches_per_chrom)
     logging.info(f"Saving plot to {args.output}...")
-    coverage_plot.savefig(args.output, dpi=100)
+    coverage_plot.savefig(args.output, dpi=300)
 
 
 if __name__ == '__main__':
