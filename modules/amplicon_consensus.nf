@@ -323,6 +323,29 @@ process call_variants {
     """
 }
 
+process call_minor_variants {
+
+    tag { sample_id }
+
+    publishDir "${params.outdir}/${sample_id}", pattern: "${sample_id}.vcf", mode: 'copy'
+
+    input:
+    tuple val(sample_id), path(alignment), path(ref)
+
+    output:
+    tuple val(sample_id), path("${sample_id}.vcf")
+
+    script:
+    """
+    samtools faidx ${ref}
+
+    lofreq call \
+    -f ${ref} \
+    --call-indels \
+    -o ${sample_id}.vcf \
+    ${alignment[0]}
+    """
+}
 
 process make_consensus {
 
