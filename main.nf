@@ -13,6 +13,7 @@ include { samtools_stats }                 from './modules/amplicon_consensus.nf
 include { samtools_mpileup }               from './modules/amplicon_consensus.nf'
 include { amplicon_coverage }              from './modules/amplicon_consensus.nf'
 include { call_variants }                  from './modules/amplicon_consensus.nf'
+include { call_minor_variants }            from './modules/amplicon_consensus.nf'
 include { make_consensus }                 from './modules/amplicon_consensus.nf'
 include { align_consensus_to_ref }         from './modules/amplicon_consensus.nf'
 include { plot_coverage }                  from './modules/amplicon_consensus.nf'
