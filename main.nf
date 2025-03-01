@@ -97,6 +97,8 @@ workflow {
 
     call_variants(ch_primer_trimmed_alignment.join(ch_ref))
 
+    call_minor_variants(ch_primer_trimmed_alignment.join(ch_ref))
+
     make_consensus(ch_primer_trimmed_alignment)
 
     align_consensus_to_ref(make_consensus.out.consensus.join(ch_indexed_ref))
